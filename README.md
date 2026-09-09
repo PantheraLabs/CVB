@@ -1,14 +1,14 @@
-# CVB — Constraint-Violation Benchmark
+# CVB, the Constraint-Violation Benchmark
 
 **Do coding agents honor project constraints when they arrive as memory instead of orders?**
 
-Teams record constraints once — "we standardized on httpx after requests
-caused the March socket-exhaustion incident" — and expect every future AI
-generation to honor them. In practice those constraints reach the model two
+Teams record a constraint once and expect every future AI generation to honor
+it. "We standardized on httpx after requests caused the March
+socket-exhaustion incident." In practice that constraint reaches the model two
 very different ways:
 
-1. as **explicit instructions** pasted into a prompt, or
-2. as **ambient memory context** injected by a memory layer, a CLAUDE.md
+1. as explicit instructions pasted into a prompt, or
+2. as ambient memory context injected by a memory layer, a CLAUDE.md
    file, or RAG.
 
 Instruction-following benchmarks (IFEval, AgentIF) only measure the first.
@@ -22,24 +22,24 @@ CVB measures both, plus a no-context baseline, and reports the difference.
 | `mandated` | task + constraints framed as explicit orders | instruction-following ceiling |
 | `incentivized` | task + the same constraints embedded in an ambient project-memory narrative, never framed as orders | memory adherence |
 
-**Headline metric — the gap:** `mandated strict accuracy − incentivized
-strict accuracy`. How much adherence dies when rules live in memory instead
-of orders.
+**The headline metric is the gap.** `mandated strict accuracy − incentivized
+strict accuracy`. It measures how much adherence dies when rules live in
+memory instead of orders.
 
 Prompt templates are frozen strings in [`cvb/prompts.py`](cvb/prompts.py)
 (`PROMPT_VERSION = "2.0"`). The incentivized narrative is built
-deterministically from the scenario file — no LLM anywhere in scoring or
-context construction. Scenario lint bans imperative wording ("must",
-"required", "rule", "you should") from constraint text so the incentivized
-arm stays genuinely non-directive.
+deterministically from the scenario file. No LLM touches scoring or context
+construction. Scenario lint bans imperative wording ("must", "required",
+"rule", "you should") from constraint text, so the incentivized arm stays
+genuinely non-directive.
 
 ## Scoring
 
 - 35 scenarios, 7 categories x 5 (library-choice, security, encoding-io,
   style-architecture, error-handling, concurrency, logging-testing).
-- Each scenario: a natural coding task that tempts the default violating
-  behavior, plus 2-4 constraints. **Each constraint carries its own
-  deterministic regex checks.**
+- Each scenario is a natural coding task that tempts the default violating
+  behavior, plus 2-4 constraints. Every constraint carries its own
+  deterministic regex checks.
 - Reported per arm: **strict accuracy** (all constraints of a run honored)
   and **per-constraint accuracy** (IFEval-style).
 - No LLM judge. Temperature 0. Runs are cheap and exactly reproducible.
@@ -59,15 +59,15 @@ python -m cvb.report results/out.json --markdown results/out.md
 Default models are probed from the live Groq catalog (first three available
 of: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `openai/gpt-oss-120b`,
 `qwen/qwen3.6-27b`, `openai/gpt-oss-20b`).
-Override with `--models`, point anywhere OpenAI-compatible with
+Override with `--models`. Point anywhere OpenAI-compatible with
 `--base-url` / `--api-key-env`.
 
 ## Results
 
-**Run of 2026-07-30 – 2026-08-02** — Groq API, temperature 0, 3 runs per
+**Run of 2026-07-30 – 2026-08-02.** Groq API, temperature 0, 3 runs per
 arm, 35 scenarios, prompt version 2.0, 1260 records total. Raw JSON in
-[`results/2026-07-29-groq/`](results/2026-07-29-groq/). Strict accuracy =
-share of runs with **every** constraint honored.
+[`results/2026-07-29-groq/`](results/2026-07-29-groq/). Strict accuracy is the
+share of runs with every constraint honored.
 
 | model | cold | mandated | incentivized | gap (mandated − incentivized) |
 | --- | --- | --- | --- | --- |
@@ -79,15 +79,16 @@ share of runs with **every** constraint honored.
 What the numbers say:
 
 1. **The scenarios genuinely tempt violations.** Cold accuracy is 0.23 for
-   both Llamas — without context, models default to the violating pattern
+   both Llamas. Without context, models default to the violating pattern
    (naive `datetime.now()`, `shell=True`, no locks, `print` logging).
 2. **Context injection is worth +60–75 points.** Every arm that carries the
-   constraints — as orders or as memory — massively beats cold. The main
-   battle is getting constraints into context at all.
+   constraints massively beats cold. That holds whether they arrive as
+   orders or as memory. The main battle is getting constraints into context
+   at all.
 3. **The mandated-vs-incentivized gap is small and model-dependent.** The
    weakest model (8B) loses 5.7 points when constraints arrive as ambient
    memory instead of orders. The 70B model actually adheres *better* to
-   memory framing (−2.9), and qwen3.6-27b is perfect under both framings
+   memory framing (−2.9). qwen3.6-27b is perfect under both framings
    (gap 0.0). For current mid-size models, non-directive memory context is
    roughly as effective as explicit instructions in single-turn generation.
 
@@ -95,28 +96,28 @@ Per-category tables: [`results/2026-07-29-groq/report.md`](results/2026-07-29-gr
 
 ## Honest limitations
 
-- **Regex checks are conservative.** They catch the canonical violation,
-  not every possible one. A pass means "no detected violation", not proof
-  of compliance.
-- **Baselines differ by model.** A stronger model violates less cold; the
+- **Regex checks are conservative.** They catch the canonical violation and
+  miss others. A pass means "no detected violation", which falls short of
+  proof of compliance.
+- **Baselines differ by model.** A stronger model violates less cold. The
   gap metric is within-model, which controls for this, but absolute rates
   are not comparable across models.
 - **Weak models can fail checks for competence reasons** (broken code)
-  rather than disobedience. Checks target the violating pattern, not code
-  quality, and per-constraint accuracy limits the blast radius, but the
+  instead of disobedience. Checks target the violating pattern and ignore
+  code quality, and per-constraint accuracy limits the blast radius, but the
   confound does not fully vanish.
-- **Scenario leakage:** public benchmarks enter training data. Scenarios
+- **Scenario leakage.** Public benchmarks enter training data. Scenarios
   are versioned and results date-stamped; treat future scores accordingly.
-- Single-turn code generation only. No tool use, no retrieval — this
+- Single-turn code generation only. No tool use, no retrieval. That
   isolates adherence from retrieval quality.
 
 ## Why this exists
 
 - Conversational-recall benchmarks are the wrong yardstick for developer
-  memory: an independent audit of LoCoMo found ~6.4% of its answer key
-  wrong and its LLM judge accepting 63% of intentionally wrong answers.
+  memory. An independent audit of LoCoMo found ~6.4% of its answer key
+  wrong, and its LLM judge accepted 63% of intentionally wrong answers.
 - PROJECTMEM (arXiv 2606.12329) established the Memory-as-Governance
-  framing — but ships no constraint-adherence evaluation. CVB fills that
+  framing. It ships no constraint-adherence evaluation. CVB fills that
   slot.
 - Motivating product: [HCR](https://github.com/PantheraLabs/HybridCognitiveRuntime),
   a developer memory layer whose job is exactly the incentivized arm. The
@@ -124,7 +125,7 @@ Per-category tables: [`results/2026-07-29-groq/report.md`](results/2026-07-29-gr
 
 ## Prompt changelog
 
-- `2.0` (2026-07-29) — initial three-arm templates.
+- `2.0` (2026-07-29). Initial three-arm templates.
 
 ## License
 
